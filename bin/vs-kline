@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# vs-kline — 港股/美股实时 K 线看盘服务管理（launchd 后端）
+set -e
+
+LABEL="com.xhq.vs-kline.backend"
+PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
+PORT=8765
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+VERSION="$(cat "$PROJECT_DIR/VERSION" 2>/dev/null || echo unknown)"
+
+cmd="${1:-}"
+case "$cmd" in
+  start)
+    if [ ! -f "$PLIST" ]; then
+      echo "❌ 未安装 plist: $PLIST"
+      echo "   先运行: bash $PROJECT_DIR/scripts/install.sh"
+      exit 1
+    fi
+    if launchctl list | grep -q "$LABEL"; then
+      echo "⚠️ 已在运行，用 restart 重启或 status 查看"
+    else
+      launchctl load "$PLIST" && echo "✅ vs-kline 已启动（uvicorn 就绪约 10s，用 status 查看）"
+    fi
+    ;;
+  stop)
+    launchctl unload "$PLIST" 2>/dev/null && echo "⏹ vs-kline 已停止" || echo "⚠️ 未在运行"
+    ;;
+  restart)
+    launchctl unload "$PLIST" 2>/dev/null || true
+    sleep 1
+    launchctl load "$PLIST" && echo "🔄 vs-kline 已重启（就绪约 10s）"
+    ;;
+  status)
+    if launchctl list | grep -q "$LABEL"; then
+      pid="$(launchctl list | grep "$LABEL" | awk '{print $1}')"
+      if [ "$pid" = "-" ] || [ -z "$pid" ]; then
+        echo "🟡 launchd 已加载，进程启动中（连 OpenD 约 10s）"
+      else
+        echo "🟢 launchd 运行中 (pid $pid)"
+      fi
+    else
+      echo "🔴 launchd 未加载（用 start 启动）"
+    fi
+    h="$(curl -s --max-time 2 "http://127.0.0.1:$PORT/health" 2>/dev/null || true)"
+    if [ -n "$h" ]; then echo "   health: $h"; else echo "   health: 无响应（未就绪或未启动）"; fi
+    ;;
+  --version|-v)
+    echo "vs-kline $VERSION"
+    ;;
+  ""|-h|--help|help)
+    cat <<EOF
+vs-kline $VERSION — 港股/美股实时 K 线看盘服务（VSCode Simple Browser）
+
+用法: vs-kline <命令>
+
+命令:
+  start      启动服务（launchd 加载）
+  stop       停止服务
+  restart    重启服务
+  status     查看运行状态 + health
+  --version  显示版本
+
+打开看盘: VSCode Cmd+Shift+P → Simple Browser: Show →
+  http://localhost:$PORT/?c1=HK.02800&k1=K_5M&c2=US.AAPL&k2=K_15M
+EOF
+    ;;
+  *)
+    echo "❌ 未知命令: $cmd（用 --help 查看用法）"
+    exit 1
+    ;;
+esac

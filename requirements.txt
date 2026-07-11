@@ -1,0 +1,4 @@
+futu-api
+fastapi
+uvicorn[standard]
+websockets
