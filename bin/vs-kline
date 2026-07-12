@@ -5,7 +5,7 @@ set -e
 LABEL="com.xhq.vs-kline.backend"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 PORT=8765
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VERSION="$(cat "$PROJECT_DIR/VERSION" 2>/dev/null || echo unknown)"
 
@@ -30,6 +30,23 @@ case "$cmd" in
     launchctl unload "$PLIST" 2>/dev/null || true
     sleep 1
     launchctl load "$PLIST" && echo "🔄 vs-kline 已重启（就绪约 10s）"
+    ;;
+  update)
+    SRC="${2:-$HOME/Documents/Projects/vs-kline}"
+    if [ ! -d "$SRC/backend" ]; then
+      echo "❌ 开发目录不存在或非 vs-kline 项目: $SRC"
+      echo "   用法: vs-kline update [开发目录路径]"
+      exit 1
+    fi
+    echo "🔄 同步开发目录 → 副本"
+    echo "   源:   $SRC"
+    echo "   目标: $PROJECT_DIR"
+    rsync -a --exclude='.venv' --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
+      "$SRC/" "$PROJECT_DIR/"
+    echo "✅ 副本已更新，重启服务…"
+    launchctl unload "$PLIST" 2>/dev/null || true
+    sleep 1
+    launchctl load "$PLIST" && echo "🔄 已重启（就绪约 10s，用 status 查看）"
     ;;
   status)
     if launchctl list | grep -q "$LABEL"; then
@@ -58,6 +75,7 @@ vs-kline $VERSION — 港股/美股实时 K 线看盘服务（VSCode Simple Brow
   start      启动服务（launchd 加载）
   stop       停止服务
   restart    重启服务
+  update [src]  从开发目录同步副本并重启（默认 ~/Documents/Projects/vs-kline）
   status     查看运行状态 + health
   --version  显示版本
 
