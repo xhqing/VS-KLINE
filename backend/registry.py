@@ -13,6 +13,7 @@ from futu import SubType
 _KTYPES = ["K_1M", "K_5M", "K_15M", "K_30M", "K_60M", "K_DAY"]
 _KLSUBTYPE = {k: getattr(SubType, k) for k in _KTYPES}
 _KLSUBTYPE["RT"] = SubType.RT_DATA  # 分时图（非 KLType，单独映射）
+_KLSUBTYPE["RT5"] = SubType.K_1M  # 5 日分时叠加（复用 1 分钟 K 线订阅）
 
 
 class SubscriptionRegistry:

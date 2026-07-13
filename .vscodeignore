@@ -1,0 +1,19 @@
+# 打包瘦身：排除源码与开发件，保留运行时所需
+.vscode/**
+src/**
+node_modules/**
+frontend/**
+legacy/**
+.venv/**
+.claude/**
+**/__pycache__/**
+**/*.pyc
+tmp/
+**/*.map
+**/*.ts
+tsconfig.json
+esbuild.mjs
+.gitignore
+.github/**
+scripts/sync-version.mjs
+**/.DS_Store

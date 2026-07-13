@@ -7,6 +7,7 @@ uvicorn 必须 --workers 1（OpenQuoteContext 进程内单例，多 worker 割�
 """
 import asyncio
 import json
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,10 +16,14 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from futu import OpenQuoteContext
 
-from backend.futu_source import KlineBridge, fetch_history
+from backend.futu_source import KlineBridge, fetch_history, fetch_rt5
 from backend.registry import SubscriptionRegistry
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+
+# OpenD 网关地址（扩展通过环境变量传入；独立运行时用默认值）
+OPEND_HOST = os.getenv("VSKLINE_OPEND_HOST", "127.0.0.1")
+OPEND_PORT = int(os.getenv("VSKLINE_OPEND_PORT", "11111"))
 
 
 async def broadcaster(queue: asyncio.Queue, registry: SubscriptionRegistry):
@@ -45,7 +50,7 @@ async def broadcaster(queue: asyncio.Queue, registry: SubscriptionRegistry):
 async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue(maxsize=10000)
-    ctx = OpenQuoteContext("127.0.0.1", 11111)
+    ctx = OpenQuoteContext(OPEND_HOST, OPEND_PORT)
     ctx.set_handler(KlineBridge(loop, queue))  # futu 接收线程 → queue
     ret, gs = ctx.get_global_state()
     app.state.ctx = ctx
@@ -118,19 +123,34 @@ async def ws_endpoint(websocket: WebSocket):
             if action == "subscribe":
                 try:
                     await registry.add(websocket, code, k_type)  # 首次订阅才真 subscribe
-                    bars, name, last_close = fetch_history(ctx, code, k_type, num=300)  # registry 已订阅
-                    await websocket.send_text(
-                        json.dumps(
-                            {
-                                "type": "history",
-                                "code": code,
-                                "name": name,
-                                "k_type": k_type,
-                                "last_close": last_close,
-                                "bars": bars,
-                            }
+                    if k_type == "RT5":
+                        series, name, last_close = fetch_rt5(ctx, code)  # 5 日分时叠加
+                        await websocket.send_text(
+                            json.dumps(
+                                {
+                                    "type": "history",
+                                    "code": code,
+                                    "name": name,
+                                    "k_type": "RT5",
+                                    "last_close": last_close,
+                                    "series": series,
+                                }
+                            )
                         )
-                    )
+                    else:
+                        bars, name, last_close = fetch_history(ctx, code, k_type, num=300)  # registry 已订阅
+                        await websocket.send_text(
+                            json.dumps(
+                                {
+                                    "type": "history",
+                                    "code": code,
+                                    "name": name,
+                                    "k_type": k_type,
+                                    "last_close": last_close,
+                                    "bars": bars,
+                                }
+                            )
+                        )
                 except Exception as e:
                     await websocket.send_text(
                         json.dumps({"type": "error", "msg": str(e)})
@@ -143,5 +163,6 @@ async def ws_endpoint(websocket: WebSocket):
         await registry.drop(websocket)
 
 
-# 前端静态（M3 用；显式路由优先于 mount）
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+# 前端静态：独立调试用（项目根有 frontend/ 时挂载；扩展形态 extDir 无 frontend 则跳过）
+if FRONTEND_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

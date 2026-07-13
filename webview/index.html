@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="__CSP__">
+<title>vs-kline</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #0e1116; color: #cdd3dc;
+    font: 13px -apple-system, "PingFang SC", sans-serif; overflow: hidden; }
+  #app { display: flex; flex-direction: column; height: 100vh; min-width: 0; }
+  #topbar { display: flex; align-items: center; gap: 10px; padding: 6px 10px;
+    background: #161a22; border-bottom: 1px solid #232834; flex: 0 0 auto; }
+  #topbar .dot { width: 8px; height: 8px; border-radius: 50%; background: #ef5350; flex: 0 0 auto; }
+  #topbar .dot.ok { background: #26a69a; }
+  #topbar .title { font-weight: 600; flex: 0 0 auto; }
+  #topbar #status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .panels { flex: 1 1 auto; display: grid; grid-template-rows: 1fr 1fr; gap: 1px; background: #232834; min-height: 0; }
+  .panel { display: flex; flex-direction: column; background: #0e1116; min-height: 0; min-width: 0; overflow: hidden; }
+  .panel-head { display: flex; align-items: center; gap: 4px; padding: 4px 6px;
+    background: #161a22; border-bottom: 1px solid #232834; flex: 0 0 auto; flex-wrap: wrap; overflow: hidden; }
+  .panel-head .sym { font-weight: 600; flex: 1 1 auto; min-width: 60px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .panel-head input { flex: 1 1 70px; min-width: 50px; width: auto;
+    background: #0e1116; color: #cdd3dc; border: 1px solid #2a313d;
+    border-radius: 3px; padding: 2px 6px; font-size: 12px; }
+  .panel-head select { flex: 0 0 auto; background: #0e1116; color: #cdd3dc; border: 1px solid #2a313d;
+    border-radius: 3px; padding: 2px 4px; font-size: 12px; }
+  .chart { flex: 1 1 auto; min-height: 0; min-width: 0; }
+  /* 隐藏 lightweight-charts 的 TradingView 归属 logo（仅藏 logo 的 <a>，勿用宽泛 class 选择器以免误伤图表） */
+  a[href*="tradingview"] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <span class="dot" id="dot"></span>
+    <span class="title">vs-kline</span>
+    <span id="status">连接中…</span>
+  </div>
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-head">
+        <span class="sym" id="sym-top">—</span>
+        <select id="type-top">
+          <option value="KL" selected>K线</option>
+          <option value="RT">分时</option>
+          <option value="RT5">5日</option>
+        </select>
+        <input id="code-top" placeholder="HK.02800">
+        <select id="kt-top">
+          <option>K_1M</option><option selected>K_5M</option><option>K_15M</option>
+          <option>K_30M</option><option>K_60M</option><option>K_DAY</option>
+        </select>
+        <select id="style-top">
+          <option value="solid" selected>实心</option>
+          <option value="hollow">空心</option>
+          <option value="line">线形</option>
+        </select>
+        <select id="ma-top">
+          <option value="0" selected>无MA</option>
+          <option>MA5</option><option>MA10</option><option>MA15</option>
+          <option>MA20</option><option>MA25</option><option>MA30</option>
+        </select>
+      </div>
+      <div class="chart" id="chart-top"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <span class="sym" id="sym-bottom">—</span>
+        <select id="type-bottom">
+          <option value="KL" selected>K线</option>
+          <option value="RT">分时</option>
+          <option value="RT5">5日</option>
+        </select>
+        <input id="code-bottom" placeholder="US.AAPL">
+        <select id="kt-bottom">
+          <option>K_1M</option><option selected>K_5M</option><option>K_15M</option>
+          <option>K_30M</option><option>K_60M</option><option>K_DAY</option>
+        </select>
+        <select id="style-bottom">
+          <option value="solid" selected>实心</option>
+          <option value="hollow">空心</option>
+          <option value="line">线形</option>
+        </select>
+        <select id="ma-bottom">
+          <option value="0" selected>无MA</option>
+          <option>MA5</option><option>MA10</option><option>MA15</option>
+          <option>MA20</option><option>MA25</option><option>MA30</option>
+        </select>
+      </div>
+      <div class="chart" id="chart-bottom"></div>
+    </div>
+  </div>
+</div>
+<script nonce="__NONCE__">
+  window.__VSKLINE_WS__ = __WS_URL__;
+  window.__VSKLINE_DEFAULTS__ = __DEFAULTS__;
+</script>
+<script nonce="__NONCE__" src="__CHART_URI__"></script>
+<script nonce="__NONCE__">
+"use strict";
+const UP = "#26a69a", DOWN = "#ef5350";
+const RT5_COLORS = ["#42a5f5", "#ffb300", "#26a69a", "#ef5350", "#ab47bc", "#ff7043"];
+const panels = {};
+
+function makePanel(key) {
+  const el = document.getElementById("chart-" + key);
+  const chart = LightweightCharts.createChart(el, {
+    autoSize: true,
+    attributionLogo: false,
+    layout: { background: { color: "#0e1116" }, textColor: "#9aa4b2" },
+    grid: { vertLines: { color: "#1a1f28" }, horzLines: { color: "#1a1f28" } },
+    timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 4, shiftVisibleRangeOnNewBar: false, lockVisibleTimeRangeOnResize: true, fixLeftEdge: true, fixRightEdge: true },
+    crosshair: { mode: 0 },
+    rightPriceScale: { borderColor: "#232834" },
+  });
+  const candle = chart.addSeries(LightweightCharts.CandlestickSeries, {
+    upColor: UP, downColor: DOWN, borderUpColor: UP, borderDownColor: DOWN,
+    wickUpColor: UP, wickDownColor: DOWN,
+  });
+  const closeLine = chart.addSeries(LightweightCharts.LineSeries, {
+    color: "#42a5f5", lineWidth: 2, visible: false, lastValueVisible: false, priceLineVisible: false,
+  });
+  const maLine = chart.addSeries(LightweightCharts.LineSeries, {
+    color: "#ffb300", lineWidth: 2, lastValueVisible: true, priceLineVisible: false,
+  });
+  const priceLine = chart.addSeries(LightweightCharts.LineSeries, {
+    color: "#42a5f5", lineWidth: 1, lastValueVisible: false, priceLineVisible: false,
+  });
+  const avgLine = chart.addSeries(LightweightCharts.LineSeries, {
+    color: "#ffb300", lineWidth: 1, lastValueVisible: false, priceLineVisible: false,
+  });
+  const vol = chart.addSeries(LightweightCharts.HistogramSeries, {
+    priceFormat: { type: "volume" }, priceScaleId: "vol",
+  });
+  chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+  return { chart, candle, closeLine, maLine, priceLine, avgLine, vol,
+    code: null, k_type: null, name: "", lastClose: null, _prevPriceLine: null,
+    _rt5Lines: [], barsCache: [], key };
+}
+
+["top", "bottom"].forEach(k => { panels[k] = makePanel(k); });
+
+function setDot(ok) {
+  document.getElementById("dot").classList.toggle("ok", ok);
+  document.getElementById("status").textContent = ok ? "已连接" : "断开，重连中…";
+}
+
+function volColor(bar) {
+  return bar.close >= bar.open ? "rgba(38,166,154,0.5)" : "rgba(239,83,80,0.5)";
+}
+
+function clearAllSeries(p) {
+  p.candle.setData([]);
+  p.closeLine.setData([]);
+  p.maLine.setData([]);
+  p.priceLine.setData([]);
+  p.avgLine.setData([]);
+  p.vol.setData([]);
+  if (p._prevPriceLine && p.candle.removePriceLine) { try { p.candle.removePriceLine(p._prevPriceLine); } catch (e) {} }
+  p._prevPriceLine = null;
+  (p._rt5Lines || []).forEach(s => { try { p.chart.removeSeries(s); } catch (e) {} });
+  p._rt5Lines = [];
+}
+
+let ws = null;
+let reconnectDelay = 1000;
+
+function connect() {
+  ws = new WebSocket(window.__VSKLINE_WS__);
+  ws.onopen = () => { reconnectDelay = 1000; setDot(true); resubscribeAll(); };
+  ws.onclose = () => {
+    setDot(false);
+    setTimeout(connect, reconnectDelay);
+    reconnectDelay = Math.min(Math.round(reconnectDelay * 1.7), 10000);
+  };
+  ws.onerror = () => { try { ws.close(); } catch (e) {} };
+  ws.onmessage = onMessage;
+}
+
+function onMessage(e) {
+  let m;
+  try { m = JSON.parse(e.data); } catch (err) { return; }
+  if (m.type === "error") { console.warn("srv error:", m.msg); return; }
+  const p = Object.values(panels).find(pp => pp.code === m.code && pp.k_type === m.k_type);
+  if (!p) return;
+  if (m.type === "history") {
+    p.name = m.name || "";
+    p.lastClose = m.last_close || null;
+    document.getElementById("sym-" + p.key).textContent = m.code + (p.name ? " " + p.name : "");
+    if (m.k_type === "RT5") {
+      let firstT = null, lastT = null;
+      (m.series || []).forEach((day, i) => {
+        const line = p.chart.addSeries(LightweightCharts.LineSeries, {
+          color: RT5_COLORS[i % RT5_COLORS.length], lineWidth: 1,
+          lastValueVisible: false, priceLineVisible: false,
+        });
+        line.setData(day.bars.map(b => ({ time: b.time, value: b.close })));
+        p._rt5Lines.push(line);
+        if (day.bars.length) {
+          if (firstT === null) firstT = day.bars[0].time;
+          lastT = day.bars[day.bars.length - 1].time;
+        }
+      });
+      // 固定横轴（5 天范围），禁缩放/平移，同分时
+      p.chart.applyOptions({ handleScroll: false, handleScale: false });
+      if (firstT !== null && lastT !== null) p.chart.timeScale().setVisibleRange({ from: firstT, to: lastT });
+    } else if (m.k_type === "RT") {
+      clearAllSeries(p);
+      p.priceLine.setData(m.bars.map(b => ({ time: b.time, value: b.price })));
+      p.avgLine.setData(m.bars.map(b => ({ time: b.time, value: b.avg_price })));
+      p.vol.setData(m.bars.map(b => ({ time: b.time, value: b.volume, color: "rgba(130,135,144,0.4)" })));
+      if (p.lastClose) p._prevPriceLine = p.priceLine.createPriceLine({ price: p.lastClose, color: "#888", lineStyle: 2, lineWidth: 1, title: "昨收" });
+      p.chart.applyOptions({ handleScroll: false, handleScale: false });
+      const range = rtVisibleRange(m.bars, m.code);
+      if (range) p.chart.timeScale().setVisibleRange(range);
+    } else {
+      clearAllSeries(p);
+      p.barsCache = m.bars.slice();
+      p.candle.setData(m.bars);
+      applyStyle(p.key);
+      applyMA(p.key);
+      p.chart.applyOptions({ handleScroll: true, handleScale: true });
+      p.chart.timeScale().fitContent();
+    }
+  } else if (m.type === "update") {
+    if (m.k_type === "RT") {
+      p.priceLine.update({ time: m.bar.time, value: m.bar.price });
+      p.avgLine.update({ time: m.bar.time, value: m.bar.avg_price });
+      p.vol.update({ time: m.bar.time, value: m.bar.volume });
+    } else if (m.k_type !== "RT5") {
+      p.candle.update(m.bar);
+      p.vol.update({ time: m.bar.time, value: m.bar.volume, color: volColor(m.bar) });
+      const arr = p.barsCache;
+      if (arr.length && arr[arr.length - 1].time === m.bar.time) arr[arr.length - 1] = m.bar;
+      else arr.push(m.bar);
+      const mp = currentMAPeriod(p.key);
+      if (mp > 0) p.maLine.setData(calcMA(arr, mp));
+      if (document.getElementById("style-" + p.key).value === "line") {
+        p.closeLine.update({ time: m.bar.time, value: m.bar.close });
+      }
+    }
+  }
+}
+
+function send(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+// N 周期收盘价均线
+function calcMA(bars, period) {
+  const out = [];
+  for (let i = period - 1; i < bars.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += bars[j].close;
+    out.push({ time: bars[i].time, value: sum / period });
+  }
+  return out;
+}
+
+// 当前均线周期（0 = 不显示）
+function currentMAPeriod(key) {
+  const v = document.getElementById("ma-" + key).value;
+  const n = parseInt((v || "").replace(/[^0-9]/g, ""), 10);
+  return n || 0;
+}
+function applyMA(key) {
+  const p = panels[key];
+  if (p.k_type === "RT" || p.k_type === "RT5" || !p.barsCache.length) { p.maLine.setData([]); return; }
+  const period = currentMAPeriod(key);
+  p.maLine.setData(period > 0 ? calcMA(p.barsCache, period) : []);
+}
+
+// K 线线型：实心 / 空心 / 线形
+function applyStyle(key) {
+  const p = panels[key];
+  if (p.k_type === "RT" || p.k_type === "RT5" || !p.barsCache.length) return;
+  const style = document.getElementById("style-" + key).value;
+  if (style === "line") {
+    p.candle.applyOptions({ visible: false });
+    p.closeLine.applyOptions({ visible: true });
+    p.closeLine.setData(p.barsCache.map(b => ({ time: b.time, value: b.close })));
+  } else {
+    p.closeLine.applyOptions({ visible: false });
+    p.closeLine.setData([]);
+    p.candle.applyOptions({ visible: true });
+    if (style === "hollow") {
+      p.candle.applyOptions({ upColor: "rgba(38,166,154,0)", borderUpColor: UP, wickUpColor: UP });
+    } else {
+      p.candle.applyOptions({ upColor: UP, borderUpColor: UP, wickUpColor: UP });
+    }
+  }
+}
+
+function marketSession(code) {
+  return [570, 960]; // [9:30, 16:00] 分钟
+}
+function rtVisibleRange(bars, code) {
+  if (!bars.length) return null;
+  const [openMin, closeMin] = marketSession(code);
+  const d = new Date(bars[0].time * 1000);
+  const day = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 1000;
+  return { from: day + openMin * 60, to: day + closeMin * 60 };
+}
+
+function onTypeChange(key) {
+  const type = document.getElementById("type-" + key).value;
+  const isIntraday = type === "RT" || type === "RT5";
+  document.getElementById("kt-" + key).style.display = isIntraday ? "none" : "";
+  document.getElementById("style-" + key).style.display = isIntraday ? "none" : "";
+  document.getElementById("ma-" + key).style.display = isIntraday ? "none" : "";
+  if (panels[key].code) subscribePanel(key);
+}
+
+function subscribePanel(key) {
+  const code = document.getElementById("code-" + key).value.trim().toUpperCase();
+  const type = document.getElementById("type-" + key).value;
+  const k_type = type === "RT" ? "RT" : type === "RT5" ? "RT5" : document.getElementById("kt-" + key).value;
+  if (!code) return;
+  const p = panels[key];
+  if (p.code) send({ action: "unsubscribe", code: p.code, k_type: p.k_type });
+  p.code = code; p.k_type = k_type;
+  document.getElementById("sym-" + key).textContent = code;
+  send({ action: "subscribe", code, k_type });
+}
+
+function resubscribeAll() {
+  ["top", "bottom"].forEach(k => {
+    const p = panels[k];
+    if (p.code) send({ action: "subscribe", code: p.code, k_type: p.k_type });
+  });
+}
+
+const defaults = window.__VSKLINE_DEFAULTS__ || {};
+function initPanel(pkey, cKey, kKey) {
+  const c = defaults[cKey];
+  if (!c) return;
+  document.getElementById("code-" + pkey).value = c.toUpperCase();
+  const k = (defaults[kKey] || "K_5M").toUpperCase();
+  if (k === "RT" || k === "RT5") {
+    document.getElementById("type-" + pkey).value = k;
+    document.getElementById("kt-" + pkey).style.display = "none";
+    document.getElementById("style-" + pkey).style.display = "none";
+    document.getElementById("ma-" + pkey).style.display = "none";
+  } else {
+    document.getElementById("kt-" + pkey).value = k;
+  }
+}
+
+["top", "bottom"].forEach(k => {
+  document.getElementById("type-" + k).addEventListener("change", () => onTypeChange(k));
+  document.getElementById("kt-" + k).addEventListener("change", () => subscribePanel(k));
+  document.getElementById("style-" + k).addEventListener("change", () => applyStyle(k));
+  document.getElementById("ma-" + k).addEventListener("change", () => applyMA(k));
+  document.getElementById("code-" + k).addEventListener("keydown", ev => {
+    if (ev.key === "Enter") subscribePanel(k);
+  });
+});
+
+connect();
+initPanel("top", "c1", "k1");
+initPanel("bottom", "c2", "k2");
+if (document.getElementById("code-top").value) subscribePanel("top");
+if (document.getElementById("code-bottom").value) subscribePanel("bottom");
+</script>
+</body>
+</html>

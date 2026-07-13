@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <g fill="currentColor">
+    <rect x="3" y="9" width="3" height="7"/>
+    <rect x="10" y="6" width="3" height="10"/>
+    <rect x="17" y="11" width="3" height="5"/>
+  </g>
+  <g stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+    <line x1="4.5" y1="7" x2="4.5" y2="18"/>
+    <line x1="11.5" y1="4" x2="11.5" y2="18"/>
+    <line x1="18.5" y1="9" x2="18.5" y2="18"/>
+  </g>
+</svg>

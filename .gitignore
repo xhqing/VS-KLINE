@@ -15,5 +15,12 @@ venv/
 # 前端
 node_modules/
 
+# VSCode 扩展构建产物
+dist/
+*.vsix
+
+# 临时产物
+tmp/
+
 # macOS
 .DS_Store

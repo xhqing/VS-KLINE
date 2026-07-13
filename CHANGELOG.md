@@ -3,6 +3,34 @@
 本项目变更记录遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.0] - 2026-07-13
+
+改造为 VSCode 扩展形态。保留 Python FastAPI 后端（数据层零改动），由扩展激活时 spawn 子进程，webview 连本地 WebSocket；旧 launchd / CLI / install.sh 迁入 `legacy/` 归档。
+
+### Changed
+
+- **交付形态**：从「launchd 常驻 + CLI + Simple Browser 打开 localhost」改为 VSCode 扩展（webview + 扩展托管子进程）
+- **新增扩展代码**（`src/`）：`BackendManager`（spawn uvicorn / 动态端口解析 / 健康检查 / SIGTERM→SIGKILL 清理）、`pythonFinder`（探测 + 校验 `import futu`）、`WebviewController`（CSP + nonce + 注入 ws 地址 / 默认标的）、配置热应用
+- **后端最小改动**（[backend/server.py](backend/server.py)）：OpenD 地址从环境变量读（`VSKLINE_OPEND_HOST/PORT`），数据契约不变
+- **webview**（`webview/`）：复制自 `frontend/` 并改造——CSP `connect-src` 精确放开动态端口、`location.host` / `location.search` 改为扩展注入的 `window.__VSKLINE_WS__` / `__VSKLINE_DEFAULTS__`
+- **构建**：`package.json` 改为扩展清单（5 命令 + 9 配置项）、esbuild bundle、`vsce package` 打包、版本同步钩子（`VERSION` → `package.json.version`）
+
+### Added
+
+- 命令：`vs-kline.open` / `start` / `stop` / `restart` / `status`
+- 配置：`pythonPath` / `host` / `port`（默认 0 动态）/ `defaultSymbols` / `opendHost`/`opendPort` / `retainContextWhenHidden` / `stopOnClose` / `autoRestart`
+- `LICENSE`（MIT）、扩展图标（`media/icon.svg`）、双 README（`README.md` 英文 + `README_cn.md` 中文）
+
+### Deprecated
+
+- `legacy/launchd/`、`legacy/bin/vs-kline`、`legacy/scripts/install.sh`：v0.1.0 的常驻部署件，扩展形态下不再需要，移入 `legacy/` 仅存档备查
+
+### 已知限制
+
+- macOS 优先（`--system-site-packages` venv 特性）；Windows / Linux 未测
+- `.vsix` 不含 Python 依赖，用户需自备可 `import futu` 的 Python 环境
+- K 线 / 分时实时推送仍待盘中验证（与 v0.1.0 相同，数据层未改）
+
 ## [0.1.0] - 2026-07-11
 
 首个可用版本。在 VSCode Simple Browser 里看港股 / 美股实时 K 线 + 分时走势的轻量看盘工具，

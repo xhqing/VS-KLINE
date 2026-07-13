@@ -1,0 +1,152 @@
+{
+  "name": "vs-kline",
+  "displayName": "vs-kline",
+  "publisher": "xhqing",
+  "version": "0.2.0",
+  "description": "Lightweight HK/US stock real-time K-line charting inside VSCode, powered by Futu OpenD.",
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "stock",
+    "kline",
+    "chart",
+    "futu",
+    "hong kong",
+    "us market"
+  ],
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vs-kline.open",
+        "title": "vs-kline: Open"
+      },
+      {
+        "command": "vs-kline.start",
+        "title": "vs-kline: Start Backend"
+      },
+      {
+        "command": "vs-kline.stop",
+        "title": "vs-kline: Stop Backend"
+      },
+      {
+        "command": "vs-kline.restart",
+        "title": "vs-kline: Restart Backend"
+      },
+      {
+        "command": "vs-kline.status",
+        "title": "vs-kline: Backend Status"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vs-kline-sidebar",
+          "title": "vs-kline",
+          "icon": "media/ab-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "vs-kline-sidebar": [
+        {
+          "id": "vs-kline.view",
+          "name": "看盘",
+          "type": "webview"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "vs-kline",
+      "properties": {
+        "vs-kline.pythonPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to a Python interpreter that can `import futu`. Empty = auto-detect (prefers `.venv/bin/python`). On macOS, create the venv with `--system-site-packages` because `pip install futu-api` into a plain venv breaks."
+        },
+        "vs-kline.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Host the backend binds to."
+        },
+        "vs-kline.port": {
+          "type": "number",
+          "default": 0,
+          "markdownDescription": "Backend port. `0` = dynamic (recommended, auto-picks a free port)."
+        },
+        "vs-kline.defaultSymbols": {
+          "type": "object",
+          "default": {
+            "c1": "HK.02800",
+            "k1": "K_5M",
+            "c2": "US.AAPL",
+            "k2": "K_15M"
+          },
+          "properties": {
+            "c1": { "type": "string" },
+            "k1": { "type": "string" },
+            "c2": { "type": "string" },
+            "k2": { "type": "string" }
+          },
+          "markdownDescription": "Default symbols for the two panels. Set `k` to `RT` to make that panel an intraday chart."
+        },
+        "vs-kline.opendHost": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Futu OpenD host."
+        },
+        "vs-kline.opendPort": {
+          "type": "number",
+          "default": 11111,
+          "description": "Futu OpenD port."
+        },
+        "vs-kline.retainContextWhenHidden": {
+          "type": "boolean",
+          "default": true,
+          "description": "Keep the webview (and its WS connection) alive when the panel is hidden."
+        },
+        "vs-kline.stopOnClose": {
+          "type": "boolean",
+          "default": true,
+          "description": "Stop the backend subprocess when the chart panel is closed."
+        },
+        "vs-kline.autoRestart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically restart the backend if it crashes."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run esbuild-base -- --minify",
+    "esbuild-base": "node esbuild.mjs",
+    "compile": "npm run esbuild-base -- --sourcemap",
+    "watch": "npm run esbuild-base -- --sourcemap --watch",
+    "typecheck": "tsc --noEmit",
+    "package": "vsce package",
+    "prepackage": "node scripts/sync-version.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xhqing/VS-KLINE.git"
+  },
+  "homepage": "https://github.com/xhqing/VS-KLINE",
+  "bugs": {
+    "url": "https://github.com/xhqing/VS-KLINE/issues"
+  }
+}

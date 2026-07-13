@@ -30,9 +30,13 @@ SUPPORTED_KTYPES = list(_KTYPES)
 
 
 def time_key_to_epoch(code: str, time_key: str) -> int:
-    """futu time_key（市场本地 naive 字符串）→ UTC 秒。lightweight-charts 要求 UTC 秒。"""
-    tz = next((v for k, v in TZ_BY_MARKET.items() if code.startswith(k)), UTC)
-    dt = datetime.strptime(time_key, "%Y-%m-%d %H:%M:%S").replace(tzinfo=tz)
+    """futu time_key（市场本地 naive 字符串）→ epoch 秒。
+
+    lightweight-charts 把 time 当 UTC 渲染横轴。为让横轴显示「市场本地时间」
+    （港股 HKT、美股 ET），这里把 naive time_key 直接当 UTC 解释——
+    横轴数字即市场本地时间。K 线与分时、历史与实时共用此函数，在途 K 线 time 对齐。
+    """
+    dt = datetime.strptime(time_key, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
     return int(dt.timestamp())
 
 
@@ -130,6 +134,38 @@ def fetch_rt(ctx, code: str, subscribed: set = None):
             }
         )
     return bars, name, last_close
+
+
+RT5_OPEN_SECONDS = 9 * 3600 + 30 * 60   # 9:30（开盘）
+RT5_CLOSE_SECONDS = 16 * 3600           # 16:00（收盘）
+
+
+def fetch_rt5(ctx, code, days=5):
+    """最近 days 个交易日的分时（1 分钟收盘价），按日分组，拼接呈现（从左到右按日期）。
+
+    返回 (series, name, last_close)。series: [{date, bars:[{time, close}]}]，按日期升序。
+    time 为市场本地当 UTC 的 epoch，5 天连续，前端 fitContent 显示整段。
+    优先 request_history_kline（历史更长，拿满 days 日）；失败回退 get_cur_kline。
+    """
+    end = (_dt.datetime.now() + _dt.timedelta(days=1)).strftime("%Y-%m-%d")
+    start = (_dt.datetime.now() - _dt.timedelta(days=days + 2)).strftime("%Y-%m-%d")
+    ret, df, _page = ctx.request_history_kline(code, start=start, end=end, ktype=_KLTYPE["K_1M"], max_count=days * 400)
+    if ret != RET_OK:
+        ret, df = ctx.get_cur_kline(code, days * 400, ktype=_KLTYPE["K_1M"])
+        if ret != RET_OK:
+            raise RuntimeError(f"fetch_rt5({code}) failed: {df}")
+    name = str(df["name"].iloc[0]) if len(df) > 0 and "name" in df.columns else ""
+    days_map = {}
+    for row in df.itertuples(index=False):
+        days_map.setdefault(row.time_key[:10], []).append((row.time_key, float(row.close)))
+    series = []
+    last_close = 0.0
+    for d in sorted(days_map.keys())[-days:]:
+        bars = [{"time": time_key_to_epoch(code, tk), "close": close} for tk, close in days_map[d]]
+        if bars:
+            last_close = bars[-1]["close"]
+            series.append({"date": d, "bars": bars})
+    return series, name, last_close
 
 
 class KlineBridge(CurKlineHandlerBase):
