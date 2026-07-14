@@ -2,7 +2,7 @@
   "name": "vs-kline",
   "displayName": "VS-KLINE",
   "publisher": "xhqing",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Lightweight HK/US stock real-time K-line charting inside VSCode, powered by Futu OpenD.",
   "categories": [
     "Visualization",
@@ -90,10 +90,18 @@
             "k2": "K_15M"
           },
           "properties": {
-            "c1": { "type": "string" },
-            "k1": { "type": "string" },
-            "c2": { "type": "string" },
-            "k2": { "type": "string" }
+            "c1": {
+              "type": "string"
+            },
+            "k1": {
+              "type": "string"
+            },
+            "c2": {
+              "type": "string"
+            },
+            "k2": {
+              "type": "string"
+            }
           },
           "markdownDescription": "Default symbols for the two panels. Set `k` to `RT` to make that panel an intraday chart."
         },
