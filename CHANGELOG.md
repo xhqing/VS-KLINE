@@ -3,6 +3,15 @@
 本项目变更记录遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.1] - 2026-07-14
+
+品牌名与图标资产打磨，无功能变更。
+
+### Changed
+
+- **品牌名统一**：[package.json](package.json) 的 `displayName`、活动栏（activitybar）标题、配置（configuration）标题由 `vs-kline` 统一为 `VS-KLINE`
+- **图标优化**：[media/icon.svg](media/icon.svg) 与 [media/ab-icon.svg](media/ab-icon.svg) 调整柱体坐标与描边宽度，视觉更饱满；同步替换 [media/icon.png](media/icon.png)
+
 ## [0.2.0] - 2026-07-13
 
 改造为 VSCode 扩展形态。保留 Python FastAPI 后端（数据层零改动），由扩展激活时 spawn 子进程，webview 连本地 WebSocket；旧 launchd / CLI / install.sh 迁入 `legacy/` 归档。
