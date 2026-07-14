@@ -24,3 +24,6 @@ tmp/
 
 # macOS
 .DS_Store
+
+# Claude Code 本机配置（含本机路径，不提交）
+.claude/settings.local.json
