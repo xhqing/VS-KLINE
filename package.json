@@ -1,6 +1,6 @@
 {
   "name": "vs-kline",
-  "displayName": "vs-kline",
+  "displayName": "VS-KLINE",
   "publisher": "xhqing",
   "version": "0.2.0",
   "description": "Lightweight HK/US stock real-time K-line charting inside VSCode, powered by Futu OpenD.",
@@ -49,7 +49,7 @@
       "activitybar": [
         {
           "id": "vs-kline-sidebar",
-          "title": "vs-kline",
+          "title": "VS-KLINE",
           "icon": "media/ab-icon.svg"
         }
       ]
@@ -64,7 +64,7 @@
       ]
     },
     "configuration": {
-      "title": "vs-kline",
+      "title": "VS-KLINE",
       "properties": {
         "vs-kline.pythonPath": {
           "type": "string",
