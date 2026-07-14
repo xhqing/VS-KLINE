@@ -74,7 +74,7 @@ export class BackendManager implements vscode.Disposable {
     });
 
     const actualPort = wantPort > 0 ? wantPort : await this.waitPortFromLogs(20000);
-    await this.waitHealth(cfg.host, actualPort, 20000);
+    await this.waitHealth(cfg.host, actualPort, 30000);
     this.port = actualPort;
     this.setState('running');
 
@@ -110,17 +110,29 @@ export class BackendManager implements vscode.Disposable {
   private async waitHealth(host: string, port: number, timeoutMs: number): Promise<void> {
     const url = `http://${host}:${port}/health`;
     const deadline = Date.now() + timeoutMs;
+    let lastState = "connecting";
     while (Date.now() < deadline) {
+      let failed = false;
+      let failMsg = "";
       try {
         const r = await fetch(url);
         if (r.ok) {
-          const j = (await r.json()) as { status?: string; opend?: boolean };
-          if (j.opend) return; // OpenD 已登录，就绪
+          const j = (await r.json()) as { opend_state?: string; opend_message?: string };
+          lastState = j.opend_state ?? "connecting";
+          if (j.opend_message) this.lastErr = j.opend_message;
+          if (j.opend_state === "connected") return;
+          if (j.opend_state === "failed") {
+            failed = true;
+            failMsg = j.opend_message || "OpenD 连接失败";
+          }
         }
       } catch { /* 后端尚未起来，继续等 */ }
-      await new Promise(r => setTimeout(r, 300));
+      if (failed) throw new Error(failMsg);
+      await new Promise(r => setTimeout(r, 500));
     }
-    throw new Error('后端健康检查超时（OpenD 未运行或未登录？详见 Output 面板）');
+    throw new Error(
+      `OpenD 连接超时（最后状态: ${lastState}）：请确认富途 OpenD 已启动并登录行情（${host}:11111）`,
+    );
   }
 
   async stop(): Promise<void> {

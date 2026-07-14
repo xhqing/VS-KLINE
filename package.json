@@ -2,7 +2,7 @@
   "name": "vs-kline",
   "displayName": "VS-KLINE",
   "publisher": "xhqing",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Lightweight HK/US stock real-time K-line charting inside VSCode, powered by Futu OpenD.",
   "categories": [
     "Visualization",

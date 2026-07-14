@@ -3,6 +3,17 @@
 本项目变更记录遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.2] - 2026-07-14
+
+修复 OpenD 不可用时后端启动阻塞的问题。
+
+### Fixed
+
+- **后端非阻塞启动**：`OpenQuoteContext` 构造函数同步阻塞导致 Uvicorn 无法启动——移至 `asyncio.to_thread` 后台执行，Uvicorn 现在立即启动
+- **端口发现超时修复**：此前 OpenD 未运行时 Uvicorn 不输出启动行，扩展报「端口发现超时」——现在 Uvicorn 正常启动，端口可被发现
+- **三态健康检查**：`/health` 新增 `opend_state`（`connecting` / `connected` / `failed`）和 `opend_message` 字段，扩展据此给出精确错误提示
+- **OpenD 连接超时检测**：futu-api 无限重试连接，新增 60 秒超时，超时后标记 `failed` 并给出明确错误信息
+
 ## [0.2.1] - 2026-07-14
 
 品牌名与图标资产打磨，无功能变更。

@@ -9,7 +9,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/VSCode-1.85%2B-007ACC?logo=visualstudiocode&logoColor=white" alt="VSCode">
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple" alt="platform">
-  <img src="https://img.shields.io/badge/version-0.2.1-green" alt="version">
+  <img src="https://img.shields.io/badge/version-0.2.2-green" alt="version">
   <img src="https://img.shields.io/badge/data-Futu%20OpenD-orange" alt="data source">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license">
 </p>
@@ -45,13 +45,13 @@
 Download the latest `.vsix` from [Releases](https://github.com/xhqing/VS-KLINE/releases), then:
 
 ```bash
-code --install-extension vs-kline-0.2.1.vsix
+code --install-extension vs-kline-0.2.2.vsix
 ```
 
 Or install directly via URL:
 
 ```bash
-code --install-extension https://github.com/xhqing/VS-KLINE/releases/download/v0.2.1/vs-kline-0.2.1.vsix
+code --install-extension https://github.com/xhqing/VS-KLINE/releases/download/v0.2.2/vs-kline-0.2.2.vsix
 ```
 
 ### From source (development)

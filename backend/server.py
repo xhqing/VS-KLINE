@@ -26,10 +26,16 @@ OPEND_HOST = os.getenv("VSKLINE_OPEND_HOST", "127.0.0.1")
 OPEND_PORT = int(os.getenv("VSKLINE_OPEND_PORT", "11111"))
 
 
-async def broadcaster(queue: asyncio.Queue, registry: SubscriptionRegistry):
-    """asyncio 侧：从队列取推送，按 (code,k_type) 路由到订阅的 WS 连接。"""
+async def broadcaster(queue: asyncio.Queue, app: FastAPI):
+    """asyncio 侧：从队列取推送，按 (code,k_type) 路由到订阅的 WS 连接。
+
+    动态读取 app.state.registry（OpenD 连接完成后才创建）。
+    """
     while True:
         item = await queue.get()
+        registry = getattr(app.state, "registry", None)
+        if not registry:
+            continue
         conns = registry.subscribers(item["code"], item["k_type"])
         if not conns:
             continue
@@ -50,24 +56,67 @@ async def broadcaster(queue: asyncio.Queue, registry: SubscriptionRegistry):
 async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue(maxsize=10000)
-    ctx = OpenQuoteContext(OPEND_HOST, OPEND_PORT)
-    ctx.set_handler(KlineBridge(loop, queue))  # futu 接收线程 → queue
-    ret, gs = ctx.get_global_state()
-    app.state.ctx = ctx
-    app.state.opend_ok = ret == 0 and gs.get("qot_logined")
-    app.state.registry = SubscriptionRegistry(ctx)
-    app.state.subscribed = set()  # M1 /history HTTP 用（简版）；WS 走 registry
-    print(f"[vs-kline] OpenD connected, qot_logined={app.state.opend_ok}", flush=True)
-    task = asyncio.create_task(broadcaster(queue, app.state.registry))
+
+    # OpenD 连接状态：connecting → connected | failed
+    app.state.opend_state = "connecting"
+    app.state.opend_message = ""
+    app.state.ctx = None
+    app.state.opend_ok = False
+    app.state.registry = None
+    app.state.subscribed = set()
+
+    async def connect_opend():
+        """后台连接 OpenD，不阻塞 Uvicorn 启动。
+
+        OpenQuoteContext 构造函数内部同步连接并重试，
+        用 asyncio.to_thread 移出事件循环，避免阻塞 lifespan。
+        futu-api 无限重试，加 60s 超时防永久卡住。
+        """
+        try:
+            ctx = await asyncio.wait_for(
+                asyncio.to_thread(OpenQuoteContext, OPEND_HOST, OPEND_PORT),
+                timeout=60.0,
+            )
+            ctx.set_handler(KlineBridge(loop, queue))
+            ret, gs = await asyncio.to_thread(ctx.get_global_state)
+            if ret == 0 and gs.get("qot_logined"):
+                app.state.ctx = ctx
+                app.state.opend_ok = True
+                app.state.opend_state = "connected"
+                app.state.registry = SubscriptionRegistry(ctx)
+                print("[vs-kline] OpenD connected, qot_logined=True", flush=True)
+            else:
+                app.state.opend_state = "failed"
+                app.state.opend_message = (
+                    f"OpenD 已连接但行情未登录 (qot_logined={gs.get('qot_logined')})"
+                )
+                print(f"[vs-kline] OpenD connected but qot_logined=False", flush=True)
+        except asyncio.TimeoutError:
+            app.state.opend_state = "failed"
+            app.state.opend_message = (
+                f"OpenD 连接超时（{OPEND_HOST}:{OPEND_PORT}）："
+                f"请确认富途 OpenD 已启动并登录行情"
+            )
+            print(f"[vs-kline] OpenD connection timed out (60s)", flush=True)
+        except Exception as e:
+            app.state.opend_state = "failed"
+            app.state.opend_message = f"OpenD 连接失败 ({OPEND_HOST}:{OPEND_PORT}): {e}"
+            print(f"[vs-kline] OpenD connection failed: {e}", flush=True)
+
+    task_connect = asyncio.create_task(connect_opend())
+    task_broadcaster = asyncio.create_task(broadcaster(queue, app))
     try:
         yield
     finally:
-        task.cancel()
-        try:
-            ctx.unsubscribe_all()
-        except Exception:
-            pass
-        ctx.close()
+        task_connect.cancel()
+        task_broadcaster.cancel()
+        ctx = getattr(app.state, "ctx", None)
+        if ctx:
+            try:
+                await asyncio.to_thread(ctx.unsubscribe_all)
+            except Exception:
+                pass
+            ctx.close()
 
 
 app = FastAPI(title="vs-kline", lifespan=lifespan)
@@ -75,7 +124,12 @@ app = FastAPI(title="vs-kline", lifespan=lifespan)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "opend": getattr(app.state, "opend_ok", False)}
+    return {
+        "status": "ok",
+        "opend": getattr(app.state, "opend_ok", False),
+        "opend_state": getattr(app.state, "opend_state", "connecting"),
+        "opend_message": getattr(app.state, "opend_message", ""),
+    }
 
 
 @app.get("/history")
@@ -84,8 +138,13 @@ def history(
     k_type: str = Query("K_5M"),
     num: int = Query(300, ge=1, le=1000),
 ):
-    if not getattr(app.state, "opend_ok", False):
-        raise HTTPException(503, "OpenD not logined")
+    ctx = app.state.ctx
+    if ctx is None:
+        state = getattr(app.state, "opend_state", "connecting")
+        msg = getattr(app.state, "opend_message", "")
+        if state == "connecting":
+            raise HTTPException(503, "OpenD 正在连接中，请稍后重试")
+        raise HTTPException(503, msg or "OpenD 不可用")
     try:
         bars, name, last_close = fetch_history(app.state.ctx, code, k_type, num, app.state.subscribed)
     except ValueError as e:
@@ -102,6 +161,14 @@ async def ws_endpoint(websocket: WebSocket):
     await websocket.accept()
     ctx = app.state.ctx
     registry = app.state.registry
+    if ctx is None:
+        state = getattr(app.state, "opend_state", "connecting")
+        msg = getattr(app.state, "opend_message", "")
+        await websocket.send_text(
+            json.dumps({"type": "error", "msg": msg or f"OpenD {state}"})
+        )
+        await websocket.close()
+        return
     try:
         while True:
             raw = await websocket.receive_text()
