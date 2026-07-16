@@ -140,8 +140,8 @@ The data layer (Futu source, timezone conversion, subscription refcounting, the 
 
 ## Troubleshooting
 
-- **"未找到可 import futu 的 Python"** — create a `--system-site-packages` venv (see Requirements) or set `vs-kline.pythonPath`.
-- **Charts empty / "OpenD 未登录"** — start Futu OpenD and confirm the login; check the `vs-kline` output channel.
+- **"No Python found that can import futu"** — create a `--system-site-packages` venv (see Requirements) or set `vs-kline.pythonPath`.
+- **Charts empty / "OpenD not logged in"** — start Futu OpenD and confirm the login; check the `vs-kline` output channel.
 - **Port in use** — set `vs-kline.port` to `0` (dynamic).
 - **Logs** — run **vs-kline: Backend Status**, or open the `vs-kline` output channel.
 
@@ -151,4 +151,4 @@ If you use, fork, or redistribute this project, please credit the original autho
 
 ## License
 
-[MIT](LICENSE)
+Copyright (c) 2026 All Contributors. Licensed under the [MIT License](LICENSE.md).

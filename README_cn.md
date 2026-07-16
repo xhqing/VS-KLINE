@@ -153,4 +153,4 @@ Python 后端（backend/，数据层不变）
 
 ## 许可证
 
-[MIT](LICENSE)
+版权所有 (c) 2026 All Contributors。本项目采用 [MIT 许可证](LICENSE.md) 授权。
